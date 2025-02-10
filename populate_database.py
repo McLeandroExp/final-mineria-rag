@@ -8,6 +8,7 @@ from langchain.schema.document import Document
 from get_embedding_function import get_embedding_function
 from langchain_chroma import Chroma
 from text_utils import normalize_text, filter_text  
+from langchain_experimental.text_splitter import SemanticChunker
 
 CHROMA_PATH = "chroma"
 DATA_PATH = "data"
@@ -29,26 +30,30 @@ def load_documents():
     return document_loader.load()
 
 def split_documents(documents: list[Document]):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=250,
-        length_function=len,
-        is_separator_regex=True,
-        separators=["\n\n"]  # Separadores personalizados
+    # Inicializar el SemanticChunker con embeddings de OpenAI
+    text_splitter = SemanticChunker(
+        get_embedding_function(), 
+        breakpoint_threshold_type="percentile"  # Opciones: "standard_deviation", "interquartile", "percentile"
     )
-    chunks = text_splitter.split_documents(documents)
-    
-    # Aplicar normalización y filtrado a cada chunk
-    for chunk in chunks:
-        chunk.page_content = normalize_text(chunk.page_content)  # Normalizar
-        # chunk.page_content = filter_text(chunk.page_content)     # Filtrar
 
+    # Crear chunks semánticos
+    chunks = []
+    for doc in documents:
+        new_chunks = text_splitter.create_documents([doc.page_content])  
+        for chunk in new_chunks:
+            # Aplicar normalización y filtrado a cada chunk
+            chunk.page_content = normalize_text(chunk.page_content)  
+            # chunk.page_content = filter_text(chunk.page_content)  # (opcional) Filtrar
+
+        chunks.extend(new_chunks)  # Agregar los nuevos chunks a la lista final
+    
     # Mostrar contenido filtrado      
     print("\n=== Contenido filtrado de los chunks ===")
     for i, chunk in enumerate(chunks):
         print(f"\nChunk {i + 1} (Filtrado):")
         print(chunk.page_content)
         print("-" * 50)
+
     return chunks
 
 # def split_documents(documents: list[Document]):

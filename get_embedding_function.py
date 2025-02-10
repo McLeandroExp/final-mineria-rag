@@ -18,7 +18,8 @@ from typing import List
 #     return embeddings
 
 class SentenceTransformerEmbeddings(Embeddings):
-    def __init__(self, model_name: str = 'paraphrase-multilingual-MiniLM-L12-v2'):
+    # def __init__(self, model_name: str = 'paraphrase-multilingual-MiniLM-L12-v2'):
+    def __init__(self, model_name: str = 'multi-qa-MiniLM-L6-cos-v1'):
         self.model = SentenceTransformer(model_name)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
