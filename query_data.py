@@ -64,6 +64,7 @@ def query_rag(query_text: str):
     print("\n=== Información detallada de las fuentes ===")
     for i, (doc, score) in enumerate(results):
         print(f"\nChunk {i + 1}:")
+        print(f"  - ID en la base de datos: {doc.metadata.get('id', 'Desconocido')}")  # Mostrar el ID real del chunk
         print(f"  - Fuente: {doc.metadata.get('source', 'Desconocida')}")
         print(f"  - Página: {doc.metadata.get('page', 'Desconocida')}")
         print(f"  - Puntaje de similitud: {score:.4f}")

@@ -2,12 +2,15 @@ import re
 import argparse
 import os
 import shutil
+import spacy
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
 from get_embedding_function import get_embedding_function
 from langchain_chroma import Chroma
 from text_utils import normalize_text, filter_text  
+from spacy.lang.es import Spanish
+from typing import Callable
 
 CHROMA_PATH = "chroma"
 DATA_PATH = "data"
@@ -28,46 +31,29 @@ def load_documents():
     document_loader = PyPDFDirectoryLoader(DATA_PATH)
     return document_loader.load()
 
-def split_documents(documents: list[Document]):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=250,
-        length_function=len,
-        is_separator_regex=True,
-        separators=["\n\n"]  # Separadores personalizados
-    )
-    chunks = text_splitter.split_documents(documents)
-    
-    # Aplicar normalización y filtrado a cada chunk
-    for chunk in chunks:
-        chunk.page_content = normalize_text(chunk.page_content)  # Normalizar
-        # chunk.page_content = filter_text(chunk.page_content)     # Filtrar
-
-    # Mostrar contenido filtrado      
-    print("\n=== Contenido filtrado de los chunks ===")
-    for i, chunk in enumerate(chunks):
-        print(f"\nChunk {i + 1} (Filtrado):")
-        print(chunk.page_content)
-        print("-" * 50)
-    return chunks
-
 # def split_documents(documents: list[Document]):
-#     chunks = []
-#     for doc in documents:
-#         # Dividir por artículos (suponiendo que los artículos están marcados con "Artículo X")
-#         articles = re.split(r"Artículo\s+\d+\.-", doc.page_content)
-#         for article in articles:
-#             if article.strip():  # Ignorar textos vacíos
-#                 chunks.append(Document(page_content=article.strip(), metadata=doc.metadata))
+#     text_splitter = RecursiveCharacterTextSplitter(
+#         chunk_size=1000,
+#         chunk_overlap=250,
+#         length_function=len,
+#         is_separator_regex=True,
+#         separators=["\n\n"]  # Separadores personalizados
+#     )
+#     chunks = text_splitter.split_documents(documents)
+    
+#     # Aplicar normalización y filtrado a cada chunk
+#     for chunk in chunks:
+#         chunk.page_content = normalize_text(chunk.page_content)  # Normalizar
+#         # chunk.page_content = filter_text(chunk.page_content)     # Filtrar
 
 #     # Mostrar contenido filtrado      
 #     print("\n=== Contenido filtrado de los chunks ===")
 #     for i, chunk in enumerate(chunks):
 #         print(f"\nChunk {i + 1} (Filtrado):")
 #         print(chunk.page_content)
-#         print("-" * 50)            
-
+#         print("-" * 50)
 #     return chunks
+
 
 def add_to_chroma(chunks: list[Document]):
     # Load the existing database.
@@ -102,7 +88,7 @@ def calculate_chunk_ids(chunks):
 
     for chunk in chunks:
         source = chunk.metadata.get("source")
-        page = chunk.metadata.get("page")
+        page = chunk.metadata.get("page") + 1
         current_page_id = f"{source}:{page}"
 
         if current_page_id == last_page_id:
@@ -120,6 +106,38 @@ def calculate_chunk_ids(chunks):
 def clear_database():
     if os.path.exists(CHROMA_PATH):
         shutil.rmtree(CHROMA_PATH)
+
+# Función para contar tokens usando spaCy
+def spacy_token_count(text: str, nlp) -> int:
+    """Cuenta el número de tokens en un texto usando spaCy."""
+    return len(list(nlp(text)))
+
+def split_documents(documents: list[Document]):
+    # Cargar el modelo de spaCy para español
+    nlp = spacy.load("es_core_news_sm")
+
+    # Configurar el RecursiveCharacterTextSplitter para usar tokens
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=400,  # Tamaño del chunk en tokens
+        chunk_overlap=0,  # Overlap en tokens
+        length_function=lambda text: spacy_token_count(text, nlp),  # Función para contar tokens
+        separators=["\n\n", "\n", ".", "?", "!", " ", ""],  # Separadores
+    )
+
+    chunks = text_splitter.split_documents(documents)
+
+    # Aplicar normalización y filtrado a cada chunk
+    for chunk in chunks:
+        chunk.page_content = normalize_text(chunk.page_content)  # Normalizar
+        # chunk.page_content = filter_text(chunk.page_content)     # Filtrar
+
+    # Mostrar contenido filtrado      
+    print("\n=== Contenido filtrado de los chunks ===")
+    for i, chunk in enumerate(chunks):
+        print(f"\nChunk {i + 1} (Filtrado):")
+        print(chunk.page_content)
+        print("-" * 50)
+    return chunks    
 
 if __name__ == "__main__":
     main()
